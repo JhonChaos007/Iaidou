@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>居合道 - 反射神経ゲーム</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      font-family: "Hiragino Mincho ProN", "MS PMincho", serif;
+      background: #000;
+      height: 100vh;
+      width: 100vw;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      color: #fff;
+    }
+
+    .container {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      position: relative;
+      padding: 10px;
+    }
+
+    .game-area {
+      background-image: url('BG.png');
+      background-size: cover;
+      background-position: center;
+      border-radius: 4px;
+      box-shadow: 0 0 50px rgba(0, 0, 0, 0.8);
+      padding: 2%;
+      aspect-ratio: 16 / 9;
+      width: 100%;
+      max-width: 1200px;
+      max-height: calc(100vh - 40px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-end;
+      cursor: pointer;
+      border: 3px solid #d4af37;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* 縦向き時の案内表示（モバイル用） */
+    #orientationOverlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: #000;
+      z-index: 1000;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 20px;
+    }
+
+    /* モバイルかつ縦向きの場合に表示 */
+    @media screen and (orientation: portrait) and (max-width: 1000px) {
+      #orientationOverlay {
+        display: flex;
+      }
+    }
+
+    @media screen and (max-height: 500px) {
+      .game-area {
+        border-width: 2px;
+        padding: 1%;
+      }
+      .title-panel {
+        padding: 15px 30px !important;
+      }
+      .title-img {
+        max-height: 80px !important;
+      }
+      .instruction-text {
+        font-size: 11px !important;
+        margin-top: 5px !important;
+      }
+      .text-gold.glow-text {
+        font-size: 16px !important;
+        margin-top: 5px !important;
+      }
+      .result-state-container {
+        padding: 10px !important;
+        width: 85% !important;
+      }
+      .result-time {
+        font-size: 20px !important;
+      }
+      .result-message {
+        font-size: 14px !important;
+      }
+    }
+
+    .game-area::before {
+      content: "";
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.2);
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    #titleState {
+      z-index: 10;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.6);
+    }
+
+    .title-panel {
+      background: rgba(255, 255, 255, 0.85);
+      padding: 30px 50px;
+      border-radius: 2px;
+      box-shadow: 0 0 30px rgba(0,0,0,0.5);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      border: 1px solid #d4af37;
+      position: relative;
+      max-width: 90%;
+    }
+
+    .title-img {
+      max-width: 100%;
+      max-height: 180px;
+      object-fit: contain;
+      filter: drop-shadow(2px 2px 2px rgba(0,0,0,0.2));
+    }
+
+    .instruction-text {
+      color: #333;
+      font-size: 14px;
+      margin-top: 15px;
+      letter-spacing: 0.1em;
+      opacity: 0.8;
+      font-weight: bold;
+      text-align: center;
+    }
+
+    .game-images {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      bottom: 0;
+      left: 0;
+      display: flex;
+      justify-content: center;
+      align-items: flex-end;
+      pointer-events: none;
+    }
+
+    .character-img {
+      height: 95%;
+      width: auto;
+      object-fit: contain;
+      position: absolute;
+      bottom: -2%;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 2;
+    }
+
+    .enemy-img {
+      height: 45%;
+      width: auto;
+      object-fit: contain;
+      position: absolute;
+      bottom: 5%;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 3;
+      transition: transform 0.1s ease-out;
+    }
+
+    .slash-overlay {
+      position: absolute;
+      top: 40%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 20;
+      pointer-events: none;
+      width: 40%;
+      display: flex;
+      justify-content: center;
+    }
+
+    .slash-img {
+      max-width: 100%;
+      height: auto;
+      animation: zan-shake 0.4s ease-out;
+    }
+
+    @keyframes zan-shake {
+      0% { transform: scale(0.5); opacity: 0; }
+      20% { transform: scale(1.1) translateX(-5px); opacity: 1; }
+      40% { transform: scale(1) translateX(5px); }
+      60% { transform: translateX(-3px); }
+      80% { transform: translateX(3px); }
+      100% { transform: translateX(0); }
+    }
+
+    .particle {
+      position: absolute;
+      background-color: #eab308;
+      pointer-events: none;
+      z-index: 4;
+    }
+
+    .btn {
+      background: #b91c1c;
+      color: #fff;
+      font-weight: bold;
+      padding: 8px 30px;
+      border: 2px solid #d4af37;
+      border-radius: 0;
+      font-size: 16px;
+      cursor: pointer;
+      transition: all 0.3s;
+      margin-top: 5px;
+      box-shadow: 0 4px 0 #5a0000;
+      z-index: 15;
+    }
+
+    .btn:hover { background: #9b1111; transform: translateY(-2px); }
+    .btn-black { background: #1a1a1a; border-color: #d4af37; color: #d4af37; }
+
+    .text-gold {
+      color: #d4af37;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+      font-weight: bold;
+      letter-spacing: 2px;
+    }
+
+    .countdown {
+      font-size: 20vh;
+      color: #d4af37;
+      position: absolute;
+      top: 30%;
+      z-index: 10;
+      text-shadow: 0 0 20px #000;
+    }
+
+    .waiting-text {
+      font-size: 20px;
+      color: #fff;
+      text-shadow: 0 0 10px #000;
+      position: absolute;
+      top: 20%;
+      z-index: 10;
+      animation: pulse 2s infinite;
+    }
+
+    .result-state-container {
+      background: rgba(0, 0, 0, 0.85);
+      padding: 15px;
+      border: 2px solid #d4af37;
+      z-index: 15;
+      width: 60%;
+      margin-bottom: 20px;
+      max-height: 80%;
+      overflow-y: auto;
+    }
+
+    .result-time {
+      font-size: 28px;
+      color: #d4af37;
+      margin-bottom: 5px;
+    }
+
+    .result-message {
+      font-size: 18px;
+      color: #f87171;
+      margin-bottom: 10px;
+    }
+
+    .result-rankings {
+      width: 100%;
+      margin: 10px 0;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid #d4af37;
+      padding: 8px;
+    }
+
+    .ranking-item {
+      display: flex;
+      justify-content: space-between;
+      color: #fff;
+      font-size: 12px;
+      border-bottom: 1px solid rgba(212, 175, 55, 0.3);
+      padding: 4px 0;
+    }
+
+    .footer {
+      width: 100%;
+      text-align: center;
+      color: #888;
+      font-size: 10px;
+      margin-top: 8px;
+    }
+
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+    @keyframes glow { 0%, 100% { filter: drop-shadow(0 0 5px #d4af37); } 50% { filter: drop-shadow(0 0 15px #d4af37); } }
+    .glow-text { animation: glow 2s infinite; }
+    .hidden { display: none !important; }
+    .text-center { text-align: center; }
+  </style>
+</head>
+<body>
+  <!-- 縦向き案内 -->
+  <div id="orientationOverlay">
+    <p class="text-gold" style="font-size: 20px;">端末を横にしてください</p>
+    <p style="margin-top: 10px; color: #888; font-size: 14px;">居合道は横画面にて本領を発揮します</p>
+  </div>
+
+  <div class="container" id="mainContainer">
+    <div class="game-area" id="gameArea">
+      <div id="gameImages" class="game-images hidden">
+        <img id="characterImg" class="character-img" src="1.png" alt="居合の構え">
+        <img id="enemyImg" class="enemy-img" src="enemy.png" alt="藁巻き">
+        <div id="slashOverlay" class="slash-overlay hidden">
+          <img src="zan.png" alt="斬" class="slash-img">
+        </div>
+      </div>
+
+      <div id="titleState" class="text-center">
+        <div class="title-panel">
+          <img src="title.png" alt="居合道" class="title-img">
+          <p class="instruction-text">静寂の中に「斬」を待て。合図と共に画面を叩け。</p>
+          <p class="text-gold glow-text" style="margin-top:20px; font-size: 20px;">叩いて開始せよ</p>
+        </div>
+      </div>
+      
+      <div id="countdownText" class="countdown hidden"></div>
+      <div id="waitingState" class="text-center hidden">
+        <p class="waiting-text">静寂を待て...</p>
+      </div>
+
+      <div id="resultState" class="text-center hidden result-state-container">
+        <div class="result-time" id="resultTime"></div>
+        <p id="resultMessage" class="result-message"></p>
+        <div id="rankingsSection" class="result-rankings hidden">
+          <p class="text-gold" style="font-size:12px; margin-bottom:5px;">— 過去の神速 —</p>
+          <div id="rankingsList"></div>
+        </div>
+        <button class="btn btn-black" onclick="reset()">再挑戦</button>
+      </div>
+    </div>
+
+    <div class="footer">
+      <p>※フライングは無作法なり。記録は己の端末に保存される。</p>
+    </div>
+  </div>
+
+  <script>
+    let gameState = 'title';
+    let startTime = 0;
+    let reactionTime = 0;
+    let rankings = [];
+    let countdown = 0;
+    let timeoutId = null;
+    let countdownInterval = null;
+
+    const characterImages = { 1: '1.png', 2: '2.png', 3: '3.png', 4: '4.png' };
+    const enemyImages = { normal: 'enemy.png', cut: 'cutenemy.png', cut2: 'cutenemy2.png' };
+
+    const swordSnd = new Audio('Sword.mp3');
+    const kiaiSnd = new Audio('kiai.mp3');
+
+    // スマホ/タッチデバイスの場合のみフルスクリーンを要求する関数
+    function requestFullScreenIfMobile() {
+      // タッチイベントがあるか、または画面幅でモバイルか判定
+      const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+      
+      if (isTouch) {
+        const doc = window.document;
+        const docEl = document.documentElement;
+        const requestFullScreen = docEl.requestFullscreen || docEl.mozRequestFullScreen || docEl.webkitRequestFullScreen || docEl.msRequestFullscreen;
+        
+        if (!doc.fullscreenElement && !doc.mozFullScreenElement && !doc.webkitFullscreenElement && !doc.msFullscreenElement) {
+          if (requestFullScreen) {
+            requestFullScreen.call(docEl).catch(err => {
+              console.log("Full screen request failed: ", err);
+            });
+          }
+        }
+      }
+    }
+
+    function loadRankings() {
+      const stored = localStorage.getItem('iaidoRankings');
+      if (stored) {
+        rankings = JSON.parse(stored);
+      }
+    }
+
+    function displayRankings() {
+      if (rankings.length === 0) {
+        document.getElementById('rankingsSection').classList.add('hidden');
+        return;
+      }
+      document.getElementById('rankingsSection').classList.remove('hidden');
+      const rankingsList = document.getElementById('rankingsList');
+      const medals = ['🥇', '🥈', '🥉'];
+      rankingsList.innerHTML = rankings.map((time, index) => `
+        <div class="ranking-item">
+          <span>${medals[index]} 其の${index + 1}</span>
+          <span style="color:#d4af37">${(time / 1000).toFixed(3)}秒</span>
+        </div>
+      `).join('');
+    }
+
+    function createParticles() {
+      const gameArea = document.getElementById('gameArea');
+      const particleCount = 20;
+      for (let i = 0; i < particleCount; i++) {
+        const particle = document.createElement('div');
+        particle.className = 'particle';
+        const width = Math.random() * 8 + 4;
+        const height = Math.random() * 4 + 2;
+        particle.style.width = width + 'px';
+        particle.style.height = height + 'px';
+        let posX = gameArea.clientWidth / 2;
+        let posY = gameArea.clientHeight * 0.7;
+        particle.style.left = posX + 'px';
+        particle.style.top = posY + 'px';
+        gameArea.appendChild(particle);
+        const angle = (Math.random() * Math.PI) + Math.PI;
+        const speed = Math.random() * 10 + 5;
+        let vx = Math.cos(angle) * speed;
+        let vy = Math.sin(angle) * speed;
+        const gravity = 0.5;
+        let rotation = Math.random() * 360;
+        let opacity = 1;
+        const animateParticle = () => {
+          posX += vx; posY += vy; vy += gravity; rotation += 10; opacity -= 0.02;
+          particle.style.left = posX + 'px';
+          particle.style.top = posY + 'px';
+          particle.style.transform = `rotate(${rotation}deg)`;
+          particle.style.opacity = opacity;
+          if (opacity > 0) requestAnimationFrame(animateParticle); else particle.remove();
+        };
+        requestAnimationFrame(animateParticle);
+      }
+    }
+
+    function showState(state) {
+      document.getElementById('titleState').classList.add('hidden');
+      document.getElementById('gameImages').classList.add('hidden');
+      document.getElementById('waitingState').classList.add('hidden');
+      document.getElementById('resultState').classList.add('hidden');
+      document.getElementById('slashOverlay').classList.add('hidden');
+      document.getElementById('countdownText').classList.add('hidden');
+      
+      if (state === 'title') {
+        document.getElementById('titleState').classList.remove('hidden');
+      } else if (state === 'waiting') {
+        document.getElementById('gameImages').classList.remove('hidden');
+        document.getElementById('waitingState').classList.remove('hidden');
+      } else if (state === 'slash') {
+        document.getElementById('gameImages').classList.remove('hidden');
+        document.getElementById('slashOverlay').classList.remove('hidden');
+      } else if (state === 'result') {
+        document.getElementById('gameImages').classList.remove('hidden');
+        document.getElementById('resultState').classList.remove('hidden');
+        displayRankings();
+      }
+    }
+
+    function startGame() {
+      // スマホの場合のみフルスクリーン要求
+      requestFullScreenIfMobile();
+      
+      gameState = 'countdown';
+      countdown = 3;
+      showState('title'); 
+      document.getElementById('titleState').classList.add('hidden');
+      document.getElementById('gameImages').classList.remove('hidden');
+      
+      const cdTxt = document.getElementById('countdownText');
+      cdTxt.textContent = countdown;
+      cdTxt.classList.remove('hidden');
+      
+      countdownInterval = setInterval(() => {
+        countdown--;
+        if (countdown <= 0) {
+          clearInterval(countdownInterval);
+          cdTxt.classList.add('hidden');
+          gameState = 'waiting';
+          showState('waiting');
+          startWaiting();
+        } else {
+          cdTxt.textContent = countdown;
+        }
+      }, 1000);
+    }
+
+    function startWaiting() {
+      const randomDelay = Math.random() * 5000 + 4000;
+      timeoutId = setTimeout(() => {
+        gameState = 'slash';
+        showState('slash');
+        kiaiSnd.currentTime = 0;
+        kiaiSnd.play();
+        startTime = performance.now();
+      }, randomDelay);
+    }
+
+    function getReactionMessage(time) {
+      if (time < 150) return '神速…！もはや目に見えぬ。';
+      if (time < 200) return '達人！見事な居合なり。';
+      if (time < 250) return 'あっぱれ！見事な太刀筋。';
+      return '修行が足りぬ。精進せよ。';
+    }
+
+    document.getElementById('gameArea').addEventListener('click', function(e) {
+      if (e.target.tagName === 'BUTTON') return;
+
+      if (gameState === 'title') {
+        startGame();
+        return;
+      }
+      
+      if (gameState === 'slash') {
+        const endTime = performance.now();
+        reactionTime = endTime - startTime;
+        gameState = 'animating';
+        swordSnd.currentTime = 0;
+        swordSnd.play();
+        document.getElementById('slashOverlay').classList.add('hidden');
+        createParticles();
+        const enemyEl = document.getElementById('enemyImg');
+        const characterEl = document.getElementById('characterImg');
+        characterEl.src = characterImages[2];
+        setTimeout(() => {
+          characterEl.src = characterImages[3];
+          enemyEl.src = enemyImages.cut;
+        }, 50);
+        setTimeout(() => {
+          characterEl.src = characterImages[4];
+          enemyEl.src = enemyImages.cut2;
+          enemyEl.style.transform = 'translateX(-40%) scale(1.05)';
+        }, 120);
+        setTimeout(() => {
+          gameState = 'result';
+          rankings.push(reactionTime);
+          rankings.sort((a, b) => a - b);
+          rankings = rankings.slice(0, 3);
+          localStorage.setItem('iaidoRankings', JSON.stringify(rankings));
+          showState('result');
+          document.getElementById('resultTime').textContent = (reactionTime / 1000).toFixed(3) + '秒';
+          document.getElementById('resultMessage').textContent = getReactionMessage(reactionTime);
+        }, 2000);
+      } else if (gameState === 'waiting' || gameState === 'countdown') {
+        gameState = 'title';
+        if (timeoutId) clearTimeout(timeoutId);
+        if (countdownInterval) clearInterval(countdownInterval);
+        reset();
+        alert('早すぎます！心を落ち着けよ。');
+      }
+    });
+
+    function reset() {
+      gameState = 'title';
+      if (timeoutId) clearTimeout(timeoutId);
+      if (countdownInterval) clearInterval(countdownInterval);
+      const enemyEl = document.getElementById('enemyImg');
+      document.getElementById('characterImg').src = characterImages[1];
+      enemyEl.src = enemyImages.normal;
+      enemyEl.style.transform = 'translateX(-50%) scale(1)';
+      document.getElementById('countdownText').classList.add('hidden');
+      showState('title');
+    }
+
+    loadRankings();
+    showState('title');
+  </script>
+</body>
+</html>
